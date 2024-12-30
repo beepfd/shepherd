@@ -1,0 +1,93 @@
+# Default values for shepherd.
+# This is a YAML-formatted file.
+# Declare variables to be passed into your templates.
+
+replicaCount: 1
+
+workload:
+  type: deployment # 可选值: deployment 或 daemonset
+
+image:
+  repository: ghostbaby/shepherd
+  pullPolicy: IfNotPresent
+  # Overrides the image tag whose default is the chart appVersion.
+  tag: "v0.0.1-amd64"
+
+imagePullSecrets: []
+nameOverride: ""
+fullnameOverride: ""
+
+serviceAccount:
+  # Specifies whether a service account should be created
+  create: true
+  # Annotations to add to the service account
+  annotations: {}
+  # The name of the service account to use.
+  # If not set and create is true, a name is generated using the fullname template
+  name: ""
+
+podAnnotations: {}
+
+podSecurityContext: {}
+
+securityContext:
+  privileged: true
+  capabilities:
+    add:
+      - SYS_ADMIN
+      - NET_ADMIN
+      - SYS_RESOURCE
+  # capabilities:
+  #   drop:
+  #   - ALL
+  # readOnlyRootFilesystem: true
+  # runAsNonRoot: true
+  # runAsUser: 1000
+
+service:
+  type: ClusterIP
+  port: 8080
+
+resources:
+  limits:
+    cpu: 1
+    memory: 2Gi
+  requests:
+    cpu: 500m
+    memory: 1Gi
+
+nodeSelector: {}
+
+tolerations: []
+
+affinity:
+  {}
+  # nodeAffinity:
+  # requiredDuringSchedulingIgnoredDuringExecution:
+  #   nodeSelectorTerms:
+  #   - matchExpressions:
+  #     - key: custom-node-label-key
+  #       operator: In
+  #       values:
+  #       - custom-node-label-value
+
+serviceMonitor:
+  enabled: false
+
+nfsTraceConfig:
+  pprof:
+  enable: true
+
+  output:
+    type: file
+    file:
+      path: "./log"
+    otel:
+      enable: true
+      endpoint: "localhost:4317"
+    clickhouse:
+      enable: true
+      host: "192.168.200.201"
+      port: "9000"
+      username: "default"
+      password: "jjkcs123"
