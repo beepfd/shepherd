@@ -74,10 +74,9 @@ affinity:
 serviceMonitor:
   enabled: false
 
-nfsTraceConfig:
+shepherdConfig:
   pprof:
-  enable: true
-
+    enable: true
   output:
     type: file
     file:
