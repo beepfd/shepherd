@@ -2,6 +2,7 @@ package output
 
 import (
 	"context"
+	"os"
 
 	"github.com/ClickHouse/clickhouse-go/v2"
 	"github.com/ClickHouse/clickhouse-go/v2/lib/driver"
@@ -12,20 +13,20 @@ import (
 	"github.com/cen-ngc5139/shepherd/internal/metadata"
 	"github.com/cen-ngc5139/shepherd/pkg/client"
 	"github.com/cilium/ebpf"
-	"github.com/cilium/ebpf/ringbuf"
+	"github.com/cilium/ebpf/perf"
 )
 
 func ProcessSchedDelay(coll *ebpf.Collection, ctx context.Context, cfg config.Configuration) {
 	schedEvents := coll.Maps["sched_events"]
-	ringbufReader, err := ringbuf.NewReader(schedEvents)
+	perfReader, err := perf.NewReader(schedEvents, os.Getpagesize())
 	if err != nil {
 		log.Errorf("failed to create ringbuf reader: %v", err)
 		return
 	}
 
-	defer ringbufReader.Close()
+	defer perfReader.Close()
 
-	conn, err := client.NewClickHouseConn(cfg, "default")
+	conn, err := client.NewClickHouseConn(cfg, cfg.Output.Clickhouse.Database)
 	if err != nil {
 		log.Fatalf("failed to connect to clickhouse: %v", err)
 	}
@@ -55,14 +56,8 @@ func ProcessSchedDelay(coll *ebpf.Collection, ctx context.Context, cfg config.Co
 			log.Info("退出事件处理")
 			return
 		default:
-			record, err := ringbufReader.Read()
-			if err != nil {
-				log.Errorf("failed to read ringbuf: %v", err)
-				continue
-			}
-
-			if err := parseRingbufEvent(&record, &event); err != nil {
-				log.Errorf("failed to parse ringbuf event: %v", err)
+			if err := parseEvent(perfReader, &event); err != nil {
+				log.Errorf("failed to parse perf event: %v", err)
 				continue
 			}
 

@@ -10,6 +10,8 @@
 #include "bpf/bpf_endian.h"
 #include "bpf/bpf_ipv6.h"
 
+extern int LINUX_KERNEL_VERSION __kconfig;
+
 // 定义数据结构来存储调度延迟信息
 struct sched_latency_t
 {
@@ -28,7 +30,7 @@ struct sched_latency_t *unused_sched_latency_t __attribute__((unused));
 // 定义 ring buffer 用于传输数据到用户空间
 struct
 {
-    __uint(type, BPF_MAP_TYPE_RINGBUF);
+    __uint(type, BPF_MAP_TYPE_PERF_EVENT_ARRAY);
     __uint(max_entries, 256 * 1024);
 } sched_events SEC(".maps");
 
@@ -122,6 +124,26 @@ u64 get_task_cgroup_id(struct task_struct *task)
     return cgroup_id;
 }
 
+// 使用 kprobe 替代 tracepoint
+SEC("kprobe/__switch_to")
+int BPF_KPROBE(kprobe_sched_switch, struct task_struct *prev)
+{
+    // 获取当前进程（即 next）的 task_struct
+    struct task_struct *next = (struct task_struct *)bpf_get_current_task();
+    if (!next)
+        return 0;
+
+    // 读取进程信息
+    u32 prev_pid = BPF_CORE_READ(prev, pid);
+    u32 prev_tgid = BPF_CORE_READ(prev, tgid);
+    u32 next_pid = BPF_CORE_READ(next, pid);
+    u32 next_tgid = BPF_CORE_READ(next, tgid);
+
+    bpf_printk("prev_pid: %d, prev_tgid: %d, next_pid: %d, next_tgid: %d\n", prev_pid, prev_tgid, next_pid, next_tgid);
+
+    return 0;
+}
+
 // sched_switch 跟踪点处理函数（添加流控）
 SEC("tp_btf/sched_switch")
 int sched_switch(u64 *ctx)
@@ -211,8 +233,8 @@ int sched_switch(u64 *ctx)
     bpf_printk("pid: %d, tid: %d, delay: %llu ns, ts: %llu ns, comm: %s, is_preempt: %d, preempted_pid: %d, preempted_comm: %s, prev_cgroup_id: %llu, next_cgroup_id: %llu\n",
                latency.pid, latency.tid, latency.delay_ns, latency.ts, latency.comm, latency.is_preempt, latency.preempted_pid, latency.preempted_comm, prev_cgroup_id, next_cgroup_id);
 
-    // 输出到 ring buffer
-    bpf_ringbuf_output(&sched_events, &latency, sizeof(latency), 0);
+    // 输出到 perf event
+    bpf_perf_event_output(ctx, &sched_events, BPF_F_CURRENT_CPU, &latency, sizeof(latency));
 
     // 删除已处理的唤醒时间记录
     bpf_map_delete_elem(&wakeup_times, &next_pid);
