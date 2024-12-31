@@ -26,7 +26,7 @@ func ProcessSchedDelay(coll *ebpf.Collection, ctx context.Context, cfg config.Co
 
 	defer perfReader.Close()
 
-	conn, err := client.NewClickHouseConn(cfg, "default")
+	conn, err := client.NewClickHouseConn(cfg, cfg.Output.Clickhouse.Database)
 	if err != nil {
 		log.Fatalf("failed to connect to clickhouse: %v", err)
 	}

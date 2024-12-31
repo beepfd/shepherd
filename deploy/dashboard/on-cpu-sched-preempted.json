@@ -411,7 +411,7 @@
                     },
                     "pluginVersion": "4.5.1",
                     "queryType": "table",
-                    "rawSql": "-- Nodes 查询：筛选 nfs-trace 相关的节点\nSELECT \n    preempted_comm as id,\n    preempted_comm as title,\n    count(DISTINCT comm) as mainstat\nFROM default.sched_latency\nWHERE is_preempt = 1\n    AND ($__timeFilter(datetime)) \n    AND (preempted_comm = '$process_name' OR comm = '$process_name')  -- 筛选条件\nGROUP BY preempted_comm\n\nUNION DISTINCT\n\nSELECT \n    comm as id,\n    comm as title,\n    count(DISTINCT preempted_comm) as mainstat\nFROM default.sched_latency\nWHERE is_preempt = 1\n    AND ($__timeFilter(datetime))\n    AND (preempted_comm = '$process_name' OR comm = '$process_name')  -- 筛选条件\nGROUP BY comm;",
+                    "rawSql": "-- Nodes 查询：筛选 nfs-trace 相关的节点\nSELECT \n    preempted_comm as id,\n    preempted_comm as title,\n    count(DISTINCT comm) as mainstat\nFROM sched_latency\nWHERE is_preempt = 1\n    AND ($__timeFilter(datetime)) \n    AND (preempted_comm = '$process_name' OR comm = '$process_name')  -- 筛选条件\nGROUP BY preempted_comm\n\nUNION DISTINCT\n\nSELECT \n    comm as id,\n    comm as title,\n    count(DISTINCT preempted_comm) as mainstat\nFROM sched_latency\nWHERE is_preempt = 1\n    AND ($__timeFilter(datetime))\n    AND (preempted_comm = '$process_name' OR comm = '$process_name')  -- 筛选条件\nGROUP BY comm;",
                     "refId": "Nodes"
                 },
                 {
@@ -502,7 +502,7 @@
                     },
                     "pluginVersion": "4.5.1",
                     "queryType": "table",
-                    "rawSql": "-- Edges 查询 nfs-trace 相关的边\nSELECT \n    concat(comm, '--', preempted_comm) as id,\n    comm as source,\n    preempted_comm as target,\n    count(*) as mainstat,\n    concat(count(*), ' times') as subtitle     \nFROM default.sched_latency\nWHERE is_preempt = 1\n    AND ($__timeFilter(datetime)) \n    AND preempted_comm != comm\n    AND (comm = '$process_name' OR preempted_comm = '$process_name')  -- 筛选nfs-trace相关的记录\nGROUP BY comm, preempted_comm\nORDER BY mainstat DESC;",
+                    "rawSql": "-- Edges 查询 nfs-trace 相关的边\nSELECT \n    concat(comm, '--', preempted_comm) as id,\n    comm as source,\n    preempted_comm as target,\n    count(*) as mainstat,\n    concat(count(*), ' times') as subtitle     \nFROM sched_latency\nWHERE is_preempt = 1\n    AND ($__timeFilter(datetime)) \n    AND preempted_comm != comm\n    AND (comm = '$process_name' OR preempted_comm = '$process_name')  -- 筛选nfs-trace相关的记录\nGROUP BY comm, preempted_comm\nORDER BY mainstat DESC;",
                     "refId": "Edges"
                 }
             ],
@@ -590,7 +590,7 @@
                     },
                     "pluginVersion": "4.5.1",
                     "queryType": "table",
-                    "rawSql": "-- Edges 查询 nfs-trace 相关的边\nSELECT \n    concat(comm, '--', preempted_comm) as id,\n    comm as source,\n    preempted_comm as target,\n    pid as preempt_pid,\n    tid as preempt_tid,\n    preempted_pid,\n    datetime\nFROM default.sched_latency\nWHERE is_preempt = 1\n\tAND ($__timeFilter(datetime))\n    AND (comm = '$process_name' OR preempted_comm = '$process_name') --过滤服务名称\nORDER BY datetime DESC;",
+                    "rawSql": "-- Edges 查询 nfs-trace 相关的边\nSELECT \n    concat(comm, '--', preempted_comm) as id,\n    comm as source,\n    preempted_comm as target,\n    pid as preempt_pid,\n    tid as preempt_tid,\n    preempted_pid,\n    datetime\nFROM sched_latency\nWHERE is_preempt = 1\n\tAND ($__timeFilter(datetime))\n    AND (comm = '$process_name' OR preempted_comm = '$process_name') --过滤服务名称\nORDER BY datetime DESC;",
                     "refId": "A"
                 }
             ],
@@ -606,36 +606,36 @@
             {
                 "current": {
                     "selected": true,
-                    "text": "nfs-trace",
-                    "value": "nfs-trace"
+                    "text": "shepherd",
+                    "value": "shepherd"
                 },
                 "datasource": {
                     "type": "grafana-clickhouse-datasource",
                     "uid": "fe79299bx68zkd"
                 },
-                "definition": "SELECT DISTINCT comm \nFROM default.sched_latency \nWHERE is_preempt = 1 \nORDER BY comm",
+                "definition": "SELECT DISTINCT comm \nFROM shepherd.sched_latency \nWHERE is_preempt = 1 \nORDER BY comm",
                 "hide": 0,
                 "includeAll": false,
                 "multi": false,
                 "name": "process_name",
                 "options": [],
-                "query": "SELECT DISTINCT comm \nFROM default.sched_latency \nWHERE is_preempt = 1 \nORDER BY comm",
+                "query": "SELECT DISTINCT comm \nFROM shepherd.sched_latency \nWHERE is_preempt = 1 \nORDER BY comm",
                 "refresh": 1,
                 "regex": "",
                 "skipUrlSync": false,
-                "sort": 0,
+                "sort": 1,
                 "type": "query"
             }
         ]
     },
     "time": {
-        "from": "now-15m",
+        "from": "now-5m",
         "to": "now"
     },
     "timepicker": {},
     "timezone": "browser",
     "title": "on-cpu 调度延迟",
     "uid": "ce75g2e3ddzwge",
-    "version": 71,
+    "version": 74,
     "weekStart": ""
 }

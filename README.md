@@ -5,8 +5,7 @@ Shepherd 是一个基于 Linux eBPF 技术的工具，专门用于检测和分�
 
 ## 主要特性
 
-- 基于 eBPF kprobes 和 tracepoints 实时监控进程调度行为
-- 精确捕获进程调度延迟，支持纳秒级延迟统计
+- 基于 eBPF tracepoints 实时监控进程调度行为
 - 自动识别进程抢占事件，区分被抢占进程和抢占进程
 - 支持 Prometheus 指标输出，便于监控集成
 - 提供 Kubernetes 集成支持，可作为 DaemonSet 部署
@@ -30,7 +29,6 @@ Shepherd 通过以下机制实现调度延迟监控：
 3. 数据采集优化：
    - 支持可配置的采样率
    - 内置延迟阈值过滤
-   - 高效的 ring buffer 数据传输
 
 ## 快速开始
 
@@ -45,16 +43,33 @@ Shepherd 通过以下机制实现调度延迟监控：
 
 ```sql
 CREATE DATABASE IF NOT EXISTS shepherd;
-CREATE TABLE IF NOT EXISTS shepherd.sched_latency (
-    pid Int32,
-    tid Int32,
-    delay_ns Int64,
-    ts Int64,
-    preempted_pid Int32,
-    preempted_comm String,
-    is_preempt Int32,
-    comm String
-) ENGINE = MergeTree() ORDER BY (pid, tid, ts);
+CREATE TABLE shepherd.sched_latency
+(
+
+    `pid` UInt32,
+
+    `tid` UInt32,
+
+    `delay_ns` UInt64,
+
+    `ts` UInt64,
+
+    `preempted_pid` UInt32,
+
+    `preempted_comm` String,
+
+    `is_preempt` UInt8,
+
+    `comm` String,
+
+    `date` Date DEFAULT today(),
+
+    `datetime` DateTime64(9) DEFAULT now64(9)
+)
+ENGINE = MergeTree
+ORDER BY (date,
+ ts)
+SETTINGS index_granularity = 8192;
 ``` 
 
 ### 导入 Grafana 模板
@@ -139,7 +154,7 @@ Shepherd 提供以下核心指标：
 
 ## 许可证
 
-本项目采用双重许可：BSD-2-Clause 和 GPL-2.0
+本项目采用双重许可：Apache-2.0 和 GPL-2.0
 
 ## 联系方式
 

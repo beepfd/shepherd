@@ -1,6 +1,5 @@
--- `default`.sched_latency definition
-
-CREATE TABLE default.sched_latency
+CREATE DATABASE IF NOT EXISTS shepherd;
+CREATE TABLE shepherd.sched_latency
 (
 
     `pid` UInt32,

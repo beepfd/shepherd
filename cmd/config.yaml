@@ -17,3 +17,4 @@ output:
     port: "9000"
     username: "default"
     password: "jjkcs123"
+    database: "shepherd"
