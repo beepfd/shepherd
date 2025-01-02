@@ -139,7 +139,8 @@ int BPF_KPROBE(kprobe_sched_switch, struct task_struct *prev)
     u32 next_pid = BPF_CORE_READ(next, pid);
     u32 next_tgid = BPF_CORE_READ(next, tgid);
 
-    bpf_printk("prev_pid: %d, prev_tgid: %d, next_pid: %d, next_tgid: %d\n", prev_pid, prev_tgid, next_pid, next_tgid);
+    // bpf_printk("prev_pid: %d, prev_tgid: %d, next_pid: %d, next_tgid: %d\n", prev_pid, prev_tgid, next_pid, next_tgid);
+    bpf_printk("prev_pid: %d, next_pid: %d \n", prev_pid, next_pid);
 
     return 0;
 }
@@ -230,8 +231,11 @@ int sched_switch(u64 *ctx)
         bpf_probe_read_kernel_str(&latency.preempted_comm, sizeof(latency.preempted_comm), prev->comm);
     }
 
-    bpf_printk("pid: %d, tid: %d, delay: %llu ns, ts: %llu ns, comm: %s, is_preempt: %d, preempted_pid: %d, preempted_comm: %s, prev_cgroup_id: %llu, next_cgroup_id: %llu\n",
-               latency.pid, latency.tid, latency.delay_ns, latency.ts, latency.comm, latency.is_preempt, latency.preempted_pid, latency.preempted_comm, prev_cgroup_id, next_cgroup_id);
+    // bpf_printk("pid: %d, tid: %d, delay: %llu ns, ts: %llu ns, comm: %s, is_preempt: %d, preempted_pid: %d, preempted_comm: %s, prev_cgroup_id: %llu, next_cgroup_id: %llu\n",
+    //            latency.pid, latency.tid, latency.delay_ns, latency.ts, latency.comm, latency.is_preempt, latency.preempted_pid, latency.preempted_comm, prev_cgroup_id, next_cgroup_id);
+
+    bpf_printk("pid: %d,  delay: %llu ns, is_preempt: %d\n",
+               latency.pid, latency.delay_ns, latency.is_preempt);
 
     // 输出到 perf event
     bpf_perf_event_output(ctx, &sched_events, BPF_F_CURRENT_CPU, &latency, sizeof(latency));
