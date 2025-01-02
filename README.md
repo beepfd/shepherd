@@ -34,7 +34,7 @@ Shepherd 通过以下机制实现调度延迟监控：
 
 ### 环境要求
 
-- Linux 内核版本 >= 6.8
+- Linux 内核版本 >= 5.15.0
 - 已启用 BTF (Binary Type Format)
 - 已安装 LLVM 和 Clang
 - Go 1.22 或更高版本
