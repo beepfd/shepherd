@@ -112,7 +112,7 @@ func Run(cfg config.Configuration) {
 	defer coll.Close()
 
 	// 附加调度跟踪点
-	schedTrace, err := bpf.AttachSchedTracepoint(coll)
+	schedTrace, err := bpf.AttachTracepointProgs(coll, bpf.SchedTracepointTargetProgs, "sched")
 	if err != nil {
 		log.Fatalf("Failed to attach sched tracepoint: %v", err)
 	}

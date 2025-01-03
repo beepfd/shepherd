@@ -82,33 +82,31 @@ func (t *tracing) trace(group, tracingName string, prog *ebpf.Program) error {
 	return nil
 }
 
-func Tracepoint(group string, progs map[string]*ebpf.Program) *tracing {
+func (t *tracing) Tracepoint(group string, progs map[string]*ebpf.Program) error {
 	log.Printf("正在附加 %s 组的 TracePoint 程序...\n", group)
 
-	var t tracing
 	for tracepointName, prog := range progs {
 		if err := t.trace(group, tracepointName, prog); err != nil {
-			log.Fatalf("附加 %s 组的 TracePoint 程序失败: %v", group, err)
+			return fmt.Errorf("附加 %s 组的 TracePoint 程序失败: %v", group, err)
 		}
 	}
 
-	return &t
+	return nil
 }
 
-func Tracing(group string, progs map[string]*ebpf.Program) *tracing {
+func (t *tracing) Tracing(group string, progs map[string]*ebpf.Program) error {
 	log.Printf("正在附加 %s 组的 tp_btf 程序...\n", group)
 
-	var t tracing
 	for _, prog := range progs {
 		tracing, err := link.AttachTracing(link.TracingOptions{Program: prog})
 		if err != nil {
-			log.Fatalf("附加 %s 组的 TracePoint 程序失败: %v", group, err)
+			return fmt.Errorf("附加 %s 组的 TracePoint 程序失败: %v", group, err)
 		}
 
 		t.addLink(tracing)
 	}
 
-	return &t
+	return nil
 }
 
 func IsTracepointExist(group, tracepointName string) bool {

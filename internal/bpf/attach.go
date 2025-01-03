@@ -5,24 +5,38 @@ import (
 )
 
 var (
-	SchedTracepointProgs = map[string]string{
+	SchedTracepointTargetProgs = map[string]string{
 		"sched_wakeup":     "sched_wakeup",
 		"sched_wakeup_new": "sched_wakeup_new",
 		"sched_switch":     "sched_switch",
 	}
 )
 
-func AttachSchedTracepoint(coll *ebpf.Collection) (*tracing, error) {
-	schedTracepointProgs := map[string]*ebpf.Program{}
+func AttachTracepointProgs(coll *ebpf.Collection, target map[string]string, group string) (*tracing, error) {
+	btfTracepointProgs := map[string]*ebpf.Program{}
+	tracepointProgs := map[string]*ebpf.Program{}
 	for name, prog := range coll.Programs {
-		key, ok := SchedTracepointProgs[name]
+		key, ok := target[name]
 		if !ok {
 			continue
 		}
 
-		schedTracepointProgs[key] = prog
+		switch prog.Type().String() {
+		case ebpf.TracePoint.String():
+			tracepointProgs[key] = prog
+		case ebpf.Tracing.String():
+			btfTracepointProgs[key] = prog
+		}
 	}
 
-	trace := Tracing("sched", schedTracepointProgs)
-	return trace, nil
+	t := &tracing{}
+	if err := t.Tracepoint(group, tracepointProgs); err != nil {
+		return nil, err
+	}
+
+	if err := t.Tracing(group, btfTracepointProgs); err != nil {
+		return nil, err
+	}
+
+	return t, nil
 }

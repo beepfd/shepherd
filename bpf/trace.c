@@ -58,41 +58,65 @@ struct trace_event_raw_sched_wakeup
     __s32 target_cpu;      /* offset: 32, size: 4 */
 } __attribute__((packed)); /* 确保结构体紧凑，没有额外的填充字节 */
 
-// sched_wakeup 跟踪点处理函数
+// 添加 tracepoint 事件结构体定义
+struct trace_event_raw_sched_wakeup_new
+{
+    /* common fields */
+    __u16 common_type;
+    __u8 common_flags;
+    __u8 common_preempt_count;
+    __s32 common_pid;
+
+    /* event specific fields */
+    char comm[16];
+    __s32 pid;
+    __s32 prio;
+    __s32 target_cpu;
+} __attribute__((packed));
+
+// 公共函数：处理进程唤醒
+static __always_inline void handle_wakeup(u32 pid)
+{
+    if (pid == 0)
+    {
+        return;
+    }
+
+    __u64 ts = bpf_ktime_get_ns();
+    bpf_map_update_elem(&wakeup_times, &pid, &ts, BPF_ANY);
+}
+
+#if LINUX_KERNEL_VERSION >= KERNEL_VERSION(5, 10, 0)
 SEC("tp_btf/sched_wakeup")
 int sched_wakeup(u64 *ctx)
 {
     struct task_struct *task = (void *)ctx[0];
-    u32 pid = task->pid;
-    if (pid == 0)
-    {
-        return 0;
-    }
-
-    __u64 ts = bpf_ktime_get_ns();
-
-    // 记录唤醒时间
-    bpf_map_update_elem(&wakeup_times, &pid, &ts, BPF_ANY);
+    handle_wakeup(task->pid);
     return 0;
 }
 
-// sched_wakeup_new 跟踪点处理函数
 SEC("tp_btf/sched_wakeup_new")
 int sched_wakeup_new(u64 *ctx)
 {
     struct task_struct *task = (void *)ctx[0];
-    u32 pid = task->pid;
-    if (pid == 0)
-    {
-        return 0;
-    }
-
-    __u64 ts = bpf_ktime_get_ns();
-
-    // 记录唤醒时间
-    bpf_map_update_elem(&wakeup_times, &pid, &ts, BPF_ANY);
+    handle_wakeup(task->pid);
     return 0;
 }
+#else
+SEC("tp/sched/sched_wakeup")
+int sched_wakeup(struct trace_event_raw_sched_wakeup *ctx)
+{
+    handle_wakeup(ctx->pid);
+    return 0;
+}
+
+SEC("tp/sched/sched_wakeup_new")
+int sched_wakeup_new(struct trace_event_raw_sched_wakeup_new *ctx)
+{
+    handle_wakeup(ctx->pid);
+    return 0;
+}
+#endif
 
 // 定义流控相关的常量和map
 #define SAMPLING_RATIO 100   // 采样率 1/100
@@ -124,28 +148,82 @@ u64 get_task_cgroup_id(struct task_struct *task)
     return cgroup_id;
 }
 
-// 使用 kprobe 替代 tracepoint
-SEC("kprobe/__switch_to")
-int BPF_KPROBE(kprobe_sched_switch, struct task_struct *prev)
+// 公共函数：处理调度切换事件
+static __always_inline void handle_sched_switch(u32 prev_pid, u32 prev_tgid,
+                                                u32 next_pid, u32 next_tgid, __u32 prev_state,
+                                                const char *prev_comm, const char *next_comm, void *ctx)
 {
-    // 获取当前进程（即 next）的 task_struct
-    struct task_struct *next = (struct task_struct *)bpf_get_current_task();
-    if (!next)
-        return 0;
+    __u64 *wakeup_ts;
+    __u64 now = bpf_ktime_get_ns();
 
-    // 读取进程信息
-    u32 prev_pid = BPF_CORE_READ(prev, pid);
-    u32 prev_tgid = BPF_CORE_READ(prev, tgid);
-    u32 next_pid = BPF_CORE_READ(next, pid);
-    u32 next_tgid = BPF_CORE_READ(next, tgid);
+    if (prev_pid == 0 || next_pid == 0)
+    {
+        return;
+    }
 
-    // bpf_printk("prev_pid: %d, prev_tgid: %d, next_pid: %d, next_tgid: %d\n", prev_pid, prev_tgid, next_pid, next_tgid);
-    bpf_printk("prev_pid: %d, next_pid: %d \n", prev_pid, next_pid);
+    // 查找进程的唤醒时间
+    wakeup_ts = bpf_map_lookup_elem(&wakeup_times, &next_pid);
+    if (!wakeup_ts)
+        return;
 
-    return 0;
+    // 计算调度延迟
+    __u64 delay = now - *wakeup_ts;
+
+    // 流控逻辑开始
+    __u32 key = 0;
+    __u64 *last_ts = bpf_map_lookup_elem(&last_sample, &key);
+    if (!last_ts)
+        return;
+
+    // 基于时间的流控
+    if ((now - *last_ts) < THRESHOLD_NS)
+    {
+        if (bpf_get_prandom_u32() % SAMPLING_RATIO != 0)
+        {
+            bpf_map_delete_elem(&wakeup_times, &next_pid);
+            return;
+        }
+    }
+
+    // 更新最后采样时间
+    bpf_map_update_elem(&last_sample, &key, &now, BPF_ANY);
+
+    // 延迟阈值过滤
+    if (delay < THRESHOLD_NS)
+    {
+        bpf_map_delete_elem(&wakeup_times, &next_pid);
+        return;
+    }
+
+    // 准备输出数据
+    struct sched_latency_t latency = {
+        .pid = next_tgid ? next_tgid : next_pid, // 如果有 tgid 则使用 tgid，否则使用 pid
+        .tid = next_pid,
+        .delay_ns = delay,
+        .ts = now,
+    };
+
+    bpf_probe_read_kernel_str(&latency.comm, sizeof(latency.comm), next_comm);
+
+    // 如果前一个状态是 TASK_RUNNING，则认为是抢占
+    if (prev_state == TASK_RUNNING)
+    {
+        latency.is_preempt = 1;
+        latency.preempted_pid = prev_tgid ? prev_tgid : prev_pid;
+        bpf_probe_read_kernel_str(&latency.preempted_comm, sizeof(latency.preempted_comm), prev_comm);
+    }
+
+    bpf_printk("pid: %d, delay: %llu ns, is_preempt: %d\n",
+               latency.pid, latency.delay_ns, latency.is_preempt);
+
+    // 输出到 perf event
+    bpf_perf_event_output(ctx, &sched_events, BPF_F_CURRENT_CPU, &latency, sizeof(latency));
+
+    // 删除已处理的唤醒时间记录
+    bpf_map_delete_elem(&wakeup_times, &next_pid);
 }
 
-// sched_switch 跟踪点处理函数（添加流控）
+#if LINUX_KERNEL_VERSION >= KERNEL_VERSION(5, 10, 0)
 SEC("tp_btf/sched_switch")
 int sched_switch(u64 *ctx)
 {
@@ -157,64 +235,6 @@ int sched_switch(u64 *ctx)
     u32 next_pid = BPF_CORE_READ(next, pid);
     u32 next_tgid = BPF_CORE_READ(next, tgid);
 
-    __u64 *wakeup_ts;
-    __u64 now = bpf_ktime_get_ns();
-
-    // 跳过内核线程 (PID = 0)
-    if (prev_pid == 0 || next_pid == 0)
-    {
-        return 0;
-    }
-
-    // 查找进程的唤醒时间
-    wakeup_ts = bpf_map_lookup_elem(&wakeup_times, &next_pid);
-    if (!wakeup_ts)
-        return 0;
-
-    // 计算调度延迟
-    __u64 delay = now - *wakeup_ts;
-
-    // 流控逻辑开始
-    __u32 key = 0;
-    __u64 *last_ts = bpf_map_lookup_elem(&last_sample, &key);
-    if (!last_ts)
-        return 0;
-
-    // 基于时间的流控
-    if ((now - *last_ts) < THRESHOLD_NS)
-    {
-        // 如果距离上次采样时间太短，执行采样判断
-        if (bpf_get_prandom_u32() % SAMPLING_RATIO != 0)
-        {
-            bpf_map_delete_elem(&wakeup_times, &next_pid);
-            return 0;
-        }
-    }
-
-    // 更新最后采样时间
-    bpf_map_update_elem(&last_sample, &key, &now, BPF_ANY);
-
-    // 延迟阈值过滤
-    if (delay < THRESHOLD_NS)
-    {
-        bpf_map_delete_elem(&wakeup_times, &next_pid);
-        return 0;
-    }
-
-    u64 prev_cgroup_id = get_task_cgroup_id(prev);
-    u64 next_cgroup_id = get_task_cgroup_id(next);
-
-    // 准备输出数据
-    struct sched_latency_t latency =
-        {
-            .pid = next_tgid,
-            .tid = next_pid,
-            .delay_ns = delay,
-            .ts = now,
-        };
-
-    bpf_probe_read_kernel_str(&latency.comm, sizeof(latency.comm), next->comm);
-
 #if defined(__TARGET_ARCH_x86)
     __u32 state = BPF_CORE_READ(prev, __state);
 #elif defined(__TARGET_ARCH_arm64)
@@ -223,27 +243,18 @@ int sched_switch(u64 *ctx)
     __u32 state = BPF_CORE_READ(prev, __state);
 #endif
 
-    // 如果前一个状态是 TASK_RUNNING，则认为是抢占, 记录被抢占的进程ID
-    if (state == TASK_RUNNING)
-    {
-        latency.is_preempt = 1;
-        latency.preempted_pid = prev_tgid;
-        bpf_probe_read_kernel_str(&latency.preempted_comm, sizeof(latency.preempted_comm), prev->comm);
-    }
-
-    // bpf_printk("pid: %d, tid: %d, delay: %llu ns, ts: %llu ns, comm: %s, is_preempt: %d, preempted_pid: %d, preempted_comm: %s, prev_cgroup_id: %llu, next_cgroup_id: %llu\n",
-    //            latency.pid, latency.tid, latency.delay_ns, latency.ts, latency.comm, latency.is_preempt, latency.preempted_pid, latency.preempted_comm, prev_cgroup_id, next_cgroup_id);
-
-    bpf_printk("pid: %d,  delay: %llu ns, is_preempt: %d\n",
-               latency.pid, latency.delay_ns, latency.is_preempt);
-
-    // 输出到 perf event
-    bpf_perf_event_output(ctx, &sched_events, BPF_F_CURRENT_CPU, &latency, sizeof(latency));
-
-    // 删除已处理的唤醒时间记录
-    bpf_map_delete_elem(&wakeup_times, &next_pid);
-
+    handle_sched_switch(prev_pid, prev_tgid, next_pid, next_tgid,
+                        state, prev->comm, next->comm, ctx);
     return 0;
 }
+#else
+SEC("tp/sched/sched_switch")
+int sched_switch(struct trace_event_raw_sched_switch *ctx)
+{
+    handle_sched_switch(ctx->prev_pid, 0, ctx->next_pid, 0,
+                        ctx->prev_state, ctx->prev_comm, ctx->next_comm, ctx);
+    return 0;
+}
+#endif
 
 char __license[] SEC("license") = "Dual BSD/GPL";
