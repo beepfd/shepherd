@@ -34,10 +34,18 @@ Shepherd 通过以下机制实现调度延迟监控：
 
 ### 环境要求
 
-- Linux 内核版本 >= 5.15.0
+- 支持 BTF 的 Linux 内核 4.19+
 - 已启用 BTF (Binary Type Format)
 - 已安装 LLVM 和 Clang
 - Go 1.22 或更高版本
+
+已测试的操作系统和内核版本：
+
+- KylinOS 10 SP3 (ARM64) - kernel 4.19.90
+- Ubuntu 24.04 (AMD64) - kernel 6.8.0
+- Ubuntu 22.04 (AMD64) - kernel 5.15.0
+- Alibaba Cloud Linux OS 3 (AMD64) - kernel 5.10.134-16.3.al8
+
 
 ### 初始化 ClickHouse
 
