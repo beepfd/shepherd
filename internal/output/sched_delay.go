@@ -2,6 +2,7 @@ package output
 
 import (
 	"context"
+	"fmt"
 	"os"
 
 	"github.com/ClickHouse/clickhouse-go/v2"
@@ -31,7 +32,7 @@ func ProcessSchedDelay(coll *ebpf.Collection, ctx context.Context, cfg config.Co
 		log.Fatalf("failed to connect to clickhouse: %v", err)
 	}
 
-	// defer conn.Close()
+	defer conn.Close()
 
 	// 准备批量插入语句
 	batch, err := conn.PrepareBatch(ctx, `
@@ -60,6 +61,8 @@ func ProcessSchedDelay(coll *ebpf.Collection, ctx context.Context, cfg config.Co
 				log.Errorf("failed to parse perf event: %v", err)
 				continue
 			}
+
+			fmt.Println(event)
 
 			batch, count, err = insertSchedMetrics(ctx, conn, batch, event, count)
 			if err != nil {
