@@ -71,9 +71,10 @@ prepare_e2e: start_qemu
 	while ! sshpass -p root ssh -p 10022 root@127.0.0.1 'systemctl is-active shepherd.service' ; do echo "waiting for shepherd service"; sleep 1; done
 
 .ONESHELL:
-e2e: build prepare_e2e
+e2e: prepare_e2e
 	ifconfig
 	RC=$$?
-	sshpass -p root ssh -p 10022 root@127.0.0.1 'tail -f /root/log/*.log'
-	sudo cat ./vm/filesystem/qemu.pid | sudo xargs kill
+	pwd
+	sshpass -p root ssh -p 10022 root@127.0.0.1 'ls /root && ls /root/log/'
+	sudo cat ./tests/e2e/vm/filesystem/qemu.pid | sudo xargs kill
 	exit $$RC

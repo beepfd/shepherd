@@ -14,17 +14,27 @@ jobs:
         uses: actions/checkout@main
       - name: Install dependencies
         run: |
-          apt-get update && apt-get install -y \
+          sudo apt-get update && sudo apt-get install -y \
           golang-1.22 \
           git \
           make \
           gcc \
           clang \
           llvm \
-          && rm -rf /var/lib/apt/lists/*
+          && mkdir -p ./internal/binary &&  sudo rm -rf /var/lib/apt/lists/*
       - name: Build binary
         run: |
           make build
+      - uses: actions/upload-artifact@master
+        with:
+          name: shepherd
+          path: |
+            ./cmd/shepherd
+      - uses: actions/upload-artifact@master
+        with:
+          name: config.yaml
+          path: |
+            ./cmd/config.yaml
   e2e-6_10:
     needs: e2e-build
     uses: ./.github/workflows/reusable-workflow.yml

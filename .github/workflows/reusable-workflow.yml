@@ -20,7 +20,12 @@ jobs:
           sudo apt-get install -y qemu-utils qemu-system-x86 sshpass
       - uses: actions/download-artifact@master
         with:
-          name: k8spacket
+          name: shepherd
+          path: ./cmd/
+      - uses: actions/download-artifact@master
+        with:
+          name: config.yaml
+          path: ./cmd/
       - name: Run e2e tests on kernel ${{ inputs.kernel }}
         run: |
           KERNEL=${{ inputs.kernel }} make e2e
