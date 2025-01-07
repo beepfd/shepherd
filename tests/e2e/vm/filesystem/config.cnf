@@ -1,0 +1,21 @@
+#openssl req -newkey rsa:4096 -nodes -keyout key.pem -x509 -sha256 -days 3650 -out cert.pem -config config.cnf
+
+[req]
+distinguished_name = req_distinguished_name
+x509_extensions = v3_req
+prompt = no
+[req_distinguished_name]
+C = PL
+ST = Poznan
+L = Poznan
+O = shepherd
+OU = shepherd
+CN = shepherd.domain
+[v3_req]
+keyUsage = keyEncipherment, dataEncipherment
+extendedKeyUsage = serverAuth
+subjectAltName = @alt_names
+[alt_names]
+DNS.1 = shepherd.domain
+DNS.2 = shepherd-tls12.domain
+DNS.3 = shepherd-tls13.domain

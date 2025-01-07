@@ -1,0 +1,62 @@
+name: Push request
+
+on:
+  pull_request:
+    branches:
+      - main
+      - ghostbaby
+
+jobs:
+  e2e-build:
+    runs-on: ubuntu-22.04
+    steps:
+      - name: Checkout
+        uses: actions/checkout@main
+      - name: Install dependencies
+        run: |
+          apt-get update && apt-get install -y \
+          golang-1.22 \
+          git \
+          make \
+          gcc \
+          clang \
+          llvm \
+          && rm -rf /var/lib/apt/lists/*
+      - name: Build binary
+        run: |
+          make build
+  e2e-6_10:
+    needs: e2e-build
+    uses: ./.github/workflows/reusable-workflow.yml
+    with:
+      kernel: "6.10"
+  e2e-6_6:
+    needs: e2e-build
+    uses: ./.github/workflows/reusable-workflow.yml
+    with:
+      kernel: "6.6"
+  e2e-6_1:
+    needs: e2e-build
+    uses: ./.github/workflows/reusable-workflow.yml
+    with:
+      kernel: "6.1"
+  e2e-5_15:
+    needs: e2e-build
+    uses: ./.github/workflows/reusable-workflow.yml
+    with:
+      kernel: "5.15"
+  e2e-5_10:
+    needs: e2e-build
+    uses: ./.github/workflows/reusable-workflow.yml
+    with:
+      kernel: "5.10"
+  e2e-5_8:
+    needs: e2e-build
+    uses: ./.github/workflows/reusable-workflow.yml
+    with:
+      kernel: "5.8"
+  e2e-5_4:
+    needs: e2e-build
+    uses: ./.github/workflows/reusable-workflow.yml
+    with:
+      kernel: "5.4"
