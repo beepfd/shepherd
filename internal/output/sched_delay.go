@@ -2,7 +2,6 @@ package output
 
 import (
 	"context"
-	"fmt"
 	"os"
 
 	"github.com/ClickHouse/clickhouse-go/v2"
@@ -12,7 +11,6 @@ import (
 	"github.com/cen-ngc5139/shepherd/internal/config"
 	"github.com/cen-ngc5139/shepherd/internal/log"
 	"github.com/cen-ngc5139/shepherd/internal/metadata"
-	"github.com/cen-ngc5139/shepherd/pkg/client"
 	"github.com/cilium/ebpf"
 	"github.com/cilium/ebpf/perf"
 )
@@ -27,27 +25,12 @@ func ProcessSchedDelay(coll *ebpf.Collection, ctx context.Context, cfg config.Co
 
 	defer perfReader.Close()
 
-	conn, err := client.NewClickHouseConn(cfg, cfg.Output.Clickhouse.Database)
+	output, err := NewOutput(cfg, ctx)
 	if err != nil {
-		log.Fatalf("failed to connect to clickhouse: %v", err)
+		log.Fatalf("failed to init output: %v", err)
 	}
 
-	defer conn.Close()
-
-	// 准备批量插入语句
-	batch, err := conn.PrepareBatch(ctx, `
-        INSERT INTO sched_latency (
-            pid, tid, delay_ns, ts, 
-            preempted_pid, preempted_comm, 
-            is_preempt, comm
-        )
-    `)
-	if err != nil {
-		log.Fatalf("failed to prepare batch: %v", err)
-	}
-
-	// 添加静态计数器
-	var count int
+	defer output.Close()
 
 	var event binary.ShepherdSchedLatencyT
 	for {
@@ -62,11 +45,8 @@ func ProcessSchedDelay(coll *ebpf.Collection, ctx context.Context, cfg config.Co
 				continue
 			}
 
-			fmt.Println(event)
-
-			batch, count, err = insertSchedMetrics(ctx, conn, batch, event, count)
-			if err != nil {
-				log.Errorf("failed to insert sched metrics: %v", err)
+			if err := output.Push(event); err != nil {
+				log.Errorf("failed to push event: %v", err)
 				continue
 			}
 

@@ -7,16 +7,14 @@ import (
 	"github.com/cen-ngc5139/shepherd/internal/config"
 )
 
-func NewClickHouseConn(cfg config.Configuration, db string) (clickhouse.Conn, error) {
-	ckCfg := cfg.Output.Clickhouse
-
+func NewClickHouseConn(cfg config.ClickhouseOutputConfig) (clickhouse.Conn, error) {
 	conn, err := clickhouse.Open(&clickhouse.Options{
 		Protocol: clickhouse.HTTP,
-		Addr:     []string{fmt.Sprintf("%s:%s", ckCfg.Host, ckCfg.Port)},
+		Addr:     []string{fmt.Sprintf("%s:%s", cfg.Host, cfg.Port)},
 		Auth: clickhouse.Auth{
-			Database: db,
-			Username: ckCfg.Username,
-			Password: ckCfg.Password,
+			Database: cfg.Database,
+			Username: cfg.Username,
+			Password: cfg.Password,
 		},
 		MaxIdleConns: 5,
 		MaxOpenConns: 10,

@@ -5,14 +5,8 @@ btf:
   kernel: "/sys/kernel/btf/vmlinux"
 
 output:
-  type: file
-  file:
-    path: "./log"
-  otel:
-    enable: true
-    endpoint: "localhost:4317"
+  type: clickhouse
   clickhouse:
-    enable: true
     host: "192.168.200.201"
     port: "9000"
     username: "default"
