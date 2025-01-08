@@ -35,7 +35,6 @@ const (
 )
 
 type ClickhouseOutputConfig struct {
-	Enable   bool   `yaml:"enable"`
 	Port     string `yaml:"port"`
 	Host     string `yaml:"host"`
 	Username string `yaml:"username"`
