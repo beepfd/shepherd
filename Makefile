@@ -9,6 +9,48 @@ VERSION=$(shell git describe --tags --always)
 # For compiling libpcap and CGO
 CC ?= gcc
 
+# 变量定义
+SSH_PASS := sshpass -p root
+SSH_OPTS := -o 'StrictHostKeyChecking no' -P 10022
+REMOTE_HOST := root@127.0.0.1
+MAX_RETRIES := 3
+
+QEMU_LOG := qemu.log
+
+# 定义超时时间（5分钟 = 300秒）
+TIMEOUT := 300
+LOG_FILE := /root/log/info.log
+
+# .PHONY 声明
+.PHONY: deploy check-connection copy-files clean retry all
+
+# 默认目标
+all: deploy
+
+# 主要部署流程
+deploy: check-connection copy-files
+	@echo "Deployment complete"
+
+# 连接检查
+check-connection:
+	@echo "Checking remote host connection..."
+	while ! nc -z 127.0.0.1 10022 ; do echo "waiting for ssh"; sleep 1; done
+
+# 文件复制
+copy-files:
+	@echo "Copying files to remote host..."
+	@for i in $$(seq 1 $(MAX_RETRIES)); do \
+		echo "Attempt $$i of $(MAX_RETRIES)"; \
+		if $(SSH_PASS) scp $(SSH_OPTS) ./cmd/shepherd $(REMOTE_HOST):/root/shepherd && \
+		   $(SSH_PASS) scp $(SSH_OPTS) ./cmd/config.yaml $(REMOTE_HOST):/root/config.yaml; then \
+			echo "Files copied successfully"; \
+			exit 0; \
+		fi; \
+		echo "Copy failed, retrying..."; \
+		sleep 2; \
+	done; \
+	echo "All retry attempts failed"; \
+	exit 1
 
 build: elf
 	cd ./cmd;CGO_ENABLED=1 GOOS=$(GOOS) GOARCH=$(GOARCH) CGO_LDFLAGS='-g -lcapstone -static'   go build -tags=netgo,osusergo -gcflags "all=-N -l" -v  -o shepherd
@@ -60,21 +102,42 @@ start_qemu:
 	-net nic -net user,hostfwd=tcp::10022-:22,hostfwd=tcp::16676-:6676,hostfwd=tcp::10443-:443 \
 	-enable-kvm \
 	-pidfile qemu.pid \
-	-nographic &
+	-nographic  > $(QEMU_LOG) 2>&1 &
 
 .ONESHELL:
-prepare_e2e: start_qemu
-	while ! nc -z 127.0.0.1 10022 ; do echo "waiting for ssh"; sleep 1; done
-	sshpass -p root scp -o 'StrictHostKeyChecking no' -P 10022 ./cmd/shepherd root@127.0.0.1:/root/shepherd
-	sshpass -p root scp -o 'StrictHostKeyChecking no' -P 10022 ./cmd/config.yaml root@127.0.0.1:/root/config.yaml
+prepare_e2e: start_qemu deploy
 	sshpass -p root ssh -p 10022 root@127.0.0.1 'chmod 0655 /root/shepherd && systemctl start shepherd.service'
 	while ! sshpass -p root ssh -p 10022 root@127.0.0.1 'systemctl is-active shepherd.service' ; do echo "waiting for shepherd service"; sleep 1; done
 
 .ONESHELL:
-e2e: prepare_e2e
+e2e: prepare_e2e check-log
 	ifconfig
 	RC=$$?
-	pwd
-	sshpass -p root ssh -p 10022 root@127.0.0.1 'ls /root && ls /root/log/'
+	sshpass -p root ssh -p 10022 root@127.0.0.1 'systemctl status shepherd.service'
 	sudo cat ./tests/e2e/vm/filesystem/qemu.pid | sudo xargs kill
 	exit $$RC
+
+check-log:
+	@echo "Checking log file..."
+	@start_time=$$(date +%s); \
+	while true; do \
+		current_time=$$(date +%s); \
+		elapsed_time=$$((current_time - start_time)); \
+		if [ $$elapsed_time -gt $(TIMEOUT) ]; then \
+			echo "Timeout after $(TIMEOUT) seconds"; \
+			exit 1; \
+		fi; \
+		if sshpass -p root ssh -p 10022 root@127.0.0.1 "\
+			if [ -f $(LOG_FILE) ] && [ -s $(LOG_FILE) ]; then \
+				cat $(LOG_FILE); \
+				exit 0; \
+			else \
+				exit 1; \
+			fi"; then \
+			echo "Log file found and not empty"; \
+			break; \
+		else \
+			echo "Waiting for log file... ($$elapsed_time seconds elapsed)"; \
+			sleep 5; \
+		fi; \
+	done
