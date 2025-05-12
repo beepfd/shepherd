@@ -2,6 +2,7 @@ package client
 
 import (
 	"fmt"
+	"time"
 
 	"github.com/ClickHouse/clickhouse-go/v2"
 	"github.com/cen-ngc5139/shepherd/internal/config"
@@ -21,7 +22,7 @@ func NewClickHouseConn(cfg config.ClickhouseOutputConfig) (clickhouse.Conn, erro
 		Compression: &clickhouse.Compression{
 			Method: clickhouse.CompressionLZ4,
 		},
-		ConnMaxLifetime:  3600,
+		ConnMaxLifetime:  time.Hour * 3,
 		ConnOpenStrategy: clickhouse.ConnOpenInOrder,
 	})
 	if err != nil {
