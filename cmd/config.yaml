@@ -5,7 +5,7 @@ btf:
   kernel: "/sys/kernel/btf/vmlinux"
 
 output:
-  type: file
+  type: clickhouse
   clickhouse:
     host: "192.168.200.201"
     port: "9000"

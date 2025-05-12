@@ -113,6 +113,7 @@ func insertSchedMetrics(ctx context.Context, conn clickhouse.Conn, batch driver.
 		sanitizeString(convertInt8ToString(event.PreemptedComm[:])),
 		event.IsPreempt,
 		sanitizeString(convertInt8ToString(event.Comm[:])),
+		event.PreemptedPidState,
 	)
 	if err != nil {
 		log.Errorf("failed to append to batch: %v", err)
@@ -132,7 +133,8 @@ func insertSchedMetrics(ctx context.Context, conn clickhouse.Conn, batch driver.
 			INSERT INTO sched_latency (
 				pid, tid, delay_ns, ts, 
 				preempted_pid, preempted_comm, 
-				is_preempt, comm
+				is_preempt, comm,
+				preempted_pid_state
 			)
 		`)
 		if err != nil {

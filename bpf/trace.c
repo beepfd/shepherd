@@ -15,14 +15,15 @@ extern int LINUX_KERNEL_VERSION __kconfig;
 // 定义数据结构来存储调度延迟信息
 struct sched_latency_t
 {
-    __u32 pid;               // 进程ID
-    __u32 tid;               // 线程ID
-    __u64 delay_ns;          // 调度延迟(纳秒)
-    __u64 ts;                // 时间戳
-    __u32 preempted_pid;     // 被抢占的进程ID
-    char preempted_comm[16]; // 被抢占的进程名
-    __u64 is_preempt;        // 是否抢占(0: 否, 1: 是)
-    char comm[16];           // 进程名
+    __u32 pid;                 // 进程ID
+    __u32 tid;                 // 线程ID
+    __u64 delay_ns;            // 调度延迟(纳秒)
+    __u64 ts;                  // 时间戳
+    __u32 preempted_pid;       // 被抢占的进程ID
+    char preempted_comm[16];   // 被抢占的进程名
+    __u64 is_preempt;          // 是否抢占(0: 否, 1: 是)
+    char comm[16];             // 进程名
+    __u32 preempted_pid_state; // 被抢占的进程状态
 } __attribute__((packed));
 
 struct sched_latency_t *unused_sched_latency_t __attribute__((unused));
@@ -201,6 +202,7 @@ static __always_inline void handle_sched_switch(u32 prev_pid, u32 prev_tgid,
         .tid = next_pid,
         .delay_ns = delay,
         .ts = now,
+        .preempted_pid_state = prev_state,
     };
 
     bpf_probe_read_kernel_str(&latency.comm, sizeof(latency.comm), next_comm);
