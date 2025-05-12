@@ -20,6 +20,8 @@ CREATE TABLE shepherd.sched_latency
 
     `date` Date DEFAULT today(),
 
+    `preempted_pid_state` UInt32,
+
     `datetime` DateTime64(9) DEFAULT now64(9)
 )
 ENGINE = MergeTree

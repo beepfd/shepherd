@@ -1,7 +1,6 @@
 module github.com/cen-ngc5139/shepherd
 
-go 1.22.4
-toolchain go1.24.1
+go 1.23.4
 
 require (
 	github.com/ClickHouse/clickhouse-go/v2 v2.30.0

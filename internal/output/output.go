@@ -58,7 +58,8 @@ func (o *Output) InitSinkCli(cfg config.OutputConfig) (err error) {
 			INSERT INTO sched_latency (
 				pid, tid, delay_ns, ts, 
 				preempted_pid, preempted_comm, 
-				is_preempt, comm
+				is_preempt, comm,
+				preempted_pid_state
 			)
 		`)
 		if err != nil {
